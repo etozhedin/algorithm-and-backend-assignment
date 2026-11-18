@@ -17,6 +17,7 @@ FROM base AS test
 USER root
 RUN uv sync --frozen --no-install-project
 COPY tests ./tests
+COPY data ./data
 CMD ["pytest", "-q"]
 
 FROM base AS runtime

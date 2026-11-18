@@ -18,9 +18,9 @@ COLUMN_ALIASES = {
     "food_cd": ["식품코드", "food_cd"],
     "food_name": ["식품명", "food_name"],
     "group_name": ["식품군", "식품대분류", "group_name"],
-    "research_year": ["조사년도", "조사연도", "research_year"],
+    "research_year": ["조사년도", "조사연도", "연도", "research_year"],
     "maker_name": ["지역/제조사", "지역및제조사", "maker_name"],
-    "ref_name": ["자료출처", "ref_name"],
+    "ref_name": ["자료출처", "성분표출처", "ref_name"],
     "serving_size": ["1회제공량", "1회제공량(g)", "1회제공량(g/ml)", "serving_size"],
     "calorie": ["에너지(kcal)", "열량(kcal)", "calorie"],
     "carbohydrate": ["탄수화물(g)", "carbohydrate"],
@@ -29,7 +29,12 @@ COLUMN_ALIASES = {
     "sugars": ["총당류(g)", "당류(g)", "sugars"],
     "sodium": ["나트륨(mg)", "sodium"],
     "cholesterol": ["콜레스테롤(mg)", "cholesterol"],
-    "saturated_fatty_acids": ["포화지방산(g)", "포화지방(g)", "saturated_fatty_acids"],
+    "saturated_fatty_acids": [
+        "포화지방산(g)",
+        "포화지방(g)",
+        "총 포화 지방산(g)",
+        "saturated_fatty_acids",
+    ],
     "trans_fat": ["트랜스지방산(g)", "트랜스지방(g)", "trans_fat"],
 }
 TEXT_FIELDS = {"food_cd", "food_name", "group_name", "maker_name", "ref_name"}
@@ -71,6 +76,8 @@ def convert(value, field):
         value = value.strip()
         if value.casefold() in MISSING:
             return None
+    if field in {"protein", "sugars", "carbohydrate"} and value == "1g 미만":
+        return None
     if field in TEXT_FIELDS:
         return str(value)
     if isinstance(value, str):
@@ -87,6 +94,9 @@ def import_workbook(path: Path, engine, *, sheet=None, header_row=1, batch_size=
     stats = {"inserted": 0, "skipped": 0}
     try:
         worksheet = workbook[sheet] if sheet else workbook.worksheets[0]
+        # This source incorrectly declares A1 as its entire worksheet dimension.
+        # Read actual XML cells instead of trusting producer-supplied dimensions.
+        worksheet.reset_dimensions()
         rows = worksheet.iter_rows(min_row=header_row, values_only=True)
         mapping = column_mapping(next(rows, ()))
         with engine.begin() as connection:

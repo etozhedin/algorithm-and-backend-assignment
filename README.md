@@ -2,7 +2,7 @@
 
 Implementation of assignment **2** using Python 3.12, FastAPI, PostgreSQL 16, SQLAlchemy 2, Alembic, and openpyxl. The existing `algorithm/algorithm.py` is unchanged.
 
-The original `통합_식품영양성분DB_음식_20230715.xlsx` was not supplied in this workspace. The importer is tested with generated Excel workbooks; its mapping must still be verified against that exact source file before submission. No synthetic records are presented as the original dataset.
+The original `통합_식품영양성분DB_음식_20230715.xlsx` is included unchanged in `data/`. It contains **7,683 food records and 100 columns** on `Sheet0`. The full workbook is covered by an automated import, repeat-import, search, and detail-response test. The larger database size mentioned in the assignment describes the broader database, not the number of rows in this supplied file.
 
 ## Algorithm task (assignment 1)
 
@@ -40,7 +40,7 @@ To change ports, edit `API_PORT` / `DB_PORT` in `.env`. A changed database passw
 
 ## Import the original workbook
 
-Place the supplied workbook in `data/`, retaining its filename:
+The supplied workbook is already included in `data/`. Import it after starting the containers:
 
 ```sh
 docker compose exec api python -m nutrition.importer \
@@ -66,7 +66,9 @@ curl --get http://localhost:8001/foods \
   --data-urlencode 'food_name=김치' --data 'page=1' --data 'page_size=5'
 ```
 
-Check that `total` is positive, inspect the returned nutrients, and fetch a returned `id` through `/foods/{id}`. Import the same file again and confirm `inserted` is zero and the API total is unchanged. The automated import test performs this workflow with a generated workbook.
+Check that `total` is positive, inspect the returned nutrients, and fetch a returned `id` through `/foods/{id}`. Against an initially empty database, the first import reports `{"inserted": 7683, "skipped": 0}`; the second reports `{"inserted": 0, "skipped": 7683}`. `tests/test_source_workbook.py` verifies these counts and compares all response fields for source record `D000006` (`꿩불고기`, 2019, 충주), including 368.8 kcal and a serving quantity of 500 g.
+
+The supplied sheet incorrectly declares its used range as `A1`. The importer resets worksheet dimensions before streaming the actual cells, so rows and columns are not silently truncated. The source has no duplicate food codes.
 
 ### Source mapping
 
@@ -78,9 +80,9 @@ Header whitespace is removed; `㎉` and `㎎` are normalized to `kcal` and `mg`.
 | 식품코드 | `food_cd` | string, unique |
 | 식품군 / 식품대분류 | `group_name` | string |
 | 식품명 | `food_name` | string |
-| 조사년도 / 조사연도 | `research_year` | integer, 1–9999 |
+| 연도 / 조사년도 / 조사연도 | `research_year` | integer, 1–9999 |
 | 지역 / 제조사 | `maker_name` | string |
-| 자료출처 | `ref_name` | string |
+| 성분표출처 / 자료출처 | `ref_name` | string |
 | 1회제공량 / 1회제공량(g) / 1회제공량(g/ml) | `serving_size` | numeric, source unit |
 | 에너지(㎉) / 에너지(kcal) / 열량(kcal) | `calorie` | kcal |
 | 탄수화물(g) | `carbohydrate` | g |
@@ -89,12 +91,14 @@ Header whitespace is removed; `㎉` and `㎎` are normalized to `kcal` and `mg`.
 | 총당류(g) / 당류(g) | `sugars` | g |
 | 나트륨(㎎) / 나트륨(mg) | `sodium` | mg |
 | 콜레스테롤(㎎) / 콜레스테롤(mg) | `cholesterol` | mg |
-| 포화지방산(g) / 포화지방(g) | `saturated_fatty_acids` | g |
+| 총 포화 지방산(g) / 포화지방산(g) / 포화지방(g) | `saturated_fatty_acids` | g |
 | 트랜스지방산(g) / 트랜스지방(g) | `trans_fat` | g |
 
-Strings are trimmed. Empty cells and `-`, `--`, `N/A`, `NA`, `null`, `ND`, `N.D.`, `Tr`, `trace` (case-insensitive) become SQL NULL / JSON `null`, **not zero**. Trace and non-detect values are unknown quantities, so this API does not invent a measured value. A required food code/name cannot be missing. Nutrients and serving size must be finite and nonnegative; years must be integral. Thousands separators such as `1,234.5` are accepted. Invalid grouping, booleans, units embedded in numeric cells (`100g`), and inequality values (`<0.1`) are rejected for review. Food codes stored as Excel text preserve leading zeros; numeric Excel cells cannot recover already-lost leading zeros. Formula cells use cached values; use the source's value-only export if cached values are absent.
+For the supplied file, `group_name` uses `식품대분류` (the food category), not `DB군` (which labels the database group as 음식). `ref_name` uses `성분표출처` (the reference publication), not `발행기관` (the publisher). Source `NO` and `SAMPLE_ID` are not used as API identifiers.
 
-`serving_size` preserves the source's numeric quantity; nutrients are not rescaled to 100 g. The exact serving unit/basis must be confirmed in the source workbook. Floating-point values are appropriate for approximate nutritional measurements; this is not a medical calculation system.
+Strings are trimmed. Empty cells and `-`, `--`, `N/A`, `NA`, `null`, `ND`, `N.D.`, `Tr`, `trace` (case-insensitive) become SQL NULL / JSON `null`, **not zero**. Trace and non-detect values are unknown quantities, so this API does not invent a measured value. A required food code/name cannot be missing. Nutrients and serving size must be finite and nonnegative; years must be integral. The source also contains 16 `1g 미만` (less than 1 g) cells: 3 protein, 12 sugars, and 1 carbohydrate values. These become `null` because no exact measured quantity is provided; they are never rounded to 0 or 1. Thousands separators such as `1,234.5` are accepted. Invalid grouping, booleans, units embedded in numeric cells (`100g`), and inequality values (`<0.1`) are rejected for review. Food codes stored as Excel text preserve leading zeros; numeric Excel cells cannot recover already-lost leading zeros. Formula cells use cached values; use the source's value-only export if cached values are absent.
+
+`serving_size` preserves the source's numeric quantity; nutrients are not rescaled to 100 g. Source `내용량_단위` is `g` for 5,279 rows and `mL` for 2,404 rows. The assignment's 17-field response does not include a serving-unit field; quantities must not be assumed to all represent grams or compared without the source unit. An explicit unit field would be a useful API extension. Floating-point values are appropriate for approximate nutritional measurements; this is not a medical calculation system.
 
 ## API contract
 
@@ -194,7 +198,7 @@ For a fully containerized test run:
 docker compose --profile test run --build --rm test
 ```
 
-Tests cover combined filters, literal wildcard escaping, SQL injection strings, pagination, every CRUD operation, missing records, duplicate create/update, malformed inputs, nullable PATCH fields, request IDs, header mapping, missing data, numeric conversion, idempotency, preserving existing records, and rollback after an earlier batch has already been inserted.
+The full-source test imports all 7,683 original records twice and checks combined search and every detail field against an independently specified source row. Other tests cover combined filters, literal wildcard escaping, SQL injection strings, pagination, every CRUD operation, missing records, duplicate create/update, malformed inputs, nullable PATCH fields, request IDs, header mapping, missing data, numeric conversion, idempotency, preserving existing records, and rollback after an earlier batch has already been inserted.
 
 ## Design decisions and tradeoffs
 
@@ -208,8 +212,10 @@ Tests cover combined filters, literal wildcard escaping, SQL injection strings, 
 
 ## Submission notes
 
-The original dataset remains the outstanding input. Confirm its headers, serving units, missing-value markers, and a few sampled API records after importing it. The source workbook is ignored by Git to avoid accidentally committing a large file; provide it separately if the submission rules require it.
+The exact supplied source workbook is tracked in Git as an exception to the general `*.xlsx` ignore rule, so a fresh clone can import it without a separate download. It is mounted read-only into the runtime container; only the test image embeds it. The source file is not modified during ingestion.
 
-Suggested commit style: Conventional Commits (`test: ...`, `feat: ...`, `docs: ...`, `ci: ...`). This workspace was not initialized as a Git repository, so no commit history or remote repository has been fabricated. Create the repository, review the files, commit meaningful changes, and submit its GitHub URL.
+Source SHA-256: `b99081a8f54c8656a106f9f58604b6b3a627f9fc077283a9b0c4b243dd1abdb4`.
 
-The implementation favors explicit validation and reproducible execution. The main remaining validation is against the actual workbook; the supplied assignment text alone cannot establish its exact cell layout. Add your own review/reflections here before submitting.
+Suggested commit style: Conventional Commits (`test: ...`, `feat: ...`, `docs: ...`, `ci: ...`). Keep changes in meaningful commits and submit the GitHub repository URL.
+
+The implementation favors explicit validation and reproducible execution. Validation against the actual workbook exposed nonstandard worksheet dimensions, different source headers, and censored nutrient values; regression tests now cover these cases. Add your own review/reflections here before submitting.

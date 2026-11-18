@@ -9,3 +9,4 @@ __pycache__/
 *.db-wal
 *.xlsx
 !data/.gitkeep
+!data/통합_식품영양성분DB_음식_20230715.xlsx
