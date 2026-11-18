@@ -61,7 +61,7 @@ class Food(Base):
 
 def make_engine(url=None):
     url = url or os.getenv(
-        "DATABASE_URL", "postgresql+psycopg://nutrition:nutrition@localhost:5432/nutrition"
+        "DATABASE_URL", "postgresql+psycopg://nutrition:nutrition@localhost:5433/nutrition"
     )
     if url.startswith("postgresql+psycopg://"):
         return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)

@@ -4,6 +4,18 @@ Implementation of assignment **2** using Python 3.12, FastAPI, PostgreSQL 16, SQ
 
 The original `통합_식품영양성분DB_음식_20230715.xlsx` was not supplied in this workspace. The importer is tested with generated Excel workbooks; its mapping must still be verified against that exact source file before submission. No synthetic records are presented as the original dataset.
 
+## Algorithm task (assignment 1)
+
+The Look-and-Say sequence solution is in [`algorithm/algorithm.py`](algorithm/algorithm.py).
+
+Run it from the repository root:
+
+```sh
+python3 algorithm/algorithm.py
+```
+
+Enter an integer `n` satisfying `3 < n < 100` when prompted. The script prints the nth sequence term and its two middle digits. For example, entering `5` prints `111221` and `result: 12`. This script uses only the Python standard library and runs independently of the API and database.
+
 ## Run with Docker
 
 ```sh
@@ -152,7 +164,7 @@ Install [uv](https://docs.astral.sh/uv/) and use Python 3.12:
 uv sync --frozen --python 3.12
 # Start only the database for a locally running API:
 docker compose up -d db
-export DATABASE_URL='postgresql+psycopg://nutrition:nutrition@localhost:5432/nutrition'
+export DATABASE_URL='postgresql+psycopg://nutrition:nutrition@localhost:5433/nutrition'
 uv run --frozen alembic upgrade head
 uv run --frozen uvicorn nutrition.main:app --port 8001 --reload --log-config logging.json
 ```
@@ -170,7 +182,7 @@ uv run --frozen ruff format --check nutrition tests migrations
 Run the same tests against PostgreSQL:
 
 ```sh
-TEST_DATABASE_URL='postgresql+psycopg://nutrition:nutrition@localhost:5432/nutrition' \
+TEST_DATABASE_URL='postgresql+psycopg://nutrition:nutrition@localhost:5433/nutrition' \
   uv run --frozen pytest -q
 ```
 
